@@ -30,3 +30,19 @@ rules:
   - get
   - patch
   - update
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - scavenger.rishab.io
+  resources:
+  - scavengerconfigs
+  verbs:
+  - get
+  - list
+  - watch

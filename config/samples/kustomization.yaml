@@ -1,0 +1,4 @@
+## Append samples of your project ##
+resources:
+- scavenger_v1_scavengerconfig.yaml
+# +kubebuilder:scaffold:manifestskustomizesamples

@@ -1,7 +1,7 @@
 # scavenger
 Scavenger is a simple kubernetes controller project created using kubebuilder once deployed to a cluster it does following
 
-- Watches pod in a given namespace and deletes them if their TTL has expired
+- Watches a given resources in a given namespaces and deletes them if their TTL has expired
 
 
 ## Getting Started

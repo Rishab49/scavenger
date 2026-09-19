@@ -1,0 +1,9 @@
+apiVersion: scavenger.rishab.io/v1
+kind: ScavengerConfig
+metadata:
+  labels:
+    app.kubernetes.io/name: scavenger
+    app.kubernetes.io/managed-by: kustomize
+  name: scavengerconfig-sample
+spec:
+  # TODO(user): Add fields here
