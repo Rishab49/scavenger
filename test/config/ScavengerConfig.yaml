@@ -1,0 +1,7 @@
+apiVersion: scavenger.rishab.io/v1
+kind: ScavengerConfig
+metadata:
+  name: scavengerconfig
+spec:
+  namespaces: ["myname"]
+  resources: ["Pod","Deployment"]

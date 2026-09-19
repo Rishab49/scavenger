@@ -6,6 +6,7 @@ cliVersion: 4.15.0
 domain: rishab.io
 layout:
 - go.kubebuilder.io/v4
+multigroup: true
 projectName: scavenger
 repo: rishab.io/scavenger
 resources:
@@ -14,5 +15,13 @@ resources:
   group: core
   kind: Pod
   path: k8s.io/api/core/v1
+  version: v1
+- api:
+    crdVersion: v1
+    namespaced: true
+  domain: rishab.io
+  group: scavenger
+  kind: ScavengerConfig
+  path: rishab.io/scavenger/api/scavenger/v1
   version: v1
 version: "3"

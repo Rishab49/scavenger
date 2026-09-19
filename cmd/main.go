@@ -35,6 +35,7 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
+	scavengerv1 "rishab.io/scavenger/api/scavenger/v1"
 	"rishab.io/scavenger/internal/controller"
 	// +kubebuilder:scaffold:imports
 )
@@ -47,6 +48,7 @@ var (
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
+	utilruntime.Must(scavengerv1.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
 }
 

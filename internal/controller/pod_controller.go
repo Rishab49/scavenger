@@ -22,8 +22,11 @@ import (
 	"strconv"
 	"time"
 
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
+	v1 "rishab.io/scavenger/api/scavenger/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -38,6 +41,8 @@ type PodReconciler struct {
 // +kubebuilder:rbac:groups=core,resources=pods,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=pods/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=core,resources=pods/finalizers,verbs=update
+// +kubebuilder:rbac:groups=scavenger.rishab.io,resources=scavengerconfigs,verbs=get;list;watch
+// +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -48,50 +53,134 @@ type PodReconciler struct {
 //
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.24.1/pkg/reconcile
+
+func getResourceType(resourceType string) (client.ObjectList, error) {
+	switch resourceType {
+	case "pod", "pods", "Pod":
+		return &corev1.PodList{}, nil
+	case "service", "services", "Service":
+		return &corev1.ServiceList{}, nil
+	case "configmap", "configmaps", "ConfigMap":
+		return &corev1.ConfigMapList{}, nil
+	case "secret", "secrets", "Secret":
+		return &corev1.SecretList{}, nil
+	case "namespace", "namespaces", "Namespace":
+		return &corev1.NamespaceList{}, nil
+	case "deployment", "deployments", "Deployment":
+		return &appsv1.DeploymentList{}, nil
+	default:
+		return nil, fmt.Errorf("unsupported core resource type: %s", resourceType)
+	}
+}
+
 func (r *PodReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 
 	log := logf.FromContext(ctx)
 
-	var pods corev1.PodList
+	// var pods corev1.PodList
 
-	// TODO(user): your logic here
-
-	if err := r.List(ctx, &pods, client.InNamespace("myname")); err != nil {
-		log.Error(err, "unable to list pods")
+	configKey := client.ObjectKey{
+		Namespace: "default",
+		Name:      "scavengerconfig",
 	}
 
-	for _, v := range pods.Items {
+	scavengerConfig := v1.ScavengerConfig{}
 
-		if annotation, ttlExists := v.Annotations["ttl"]; ttlExists {
+	if err := r.Get(ctx, configKey, &scavengerConfig); err != nil {
+		log.Error(err, "unable to get the Scavenger Configuration")
+	}
 
-			fmt.Println("TTL", annotation)
-			fmt.Println("Creation Time", v.CreationTimestamp)
+	fmt.Println(scavengerConfig)
 
-			ttl, _ := strconv.ParseInt(annotation, 10, 64)
-			creationTime := v.CreationTimestamp.Time
-			duration := time.Since(creationTime)
+	namespaces := scavengerConfig.Spec.Namespaces
 
-			fmt.Println("Duration", int64(duration.Seconds()))
-			fmt.Println("Time now", time.Now())
+	for _, namespace := range namespaces {
 
-			if ttl < int64(duration.Seconds()) {
-				fmt.Println("Deleting Pod as its ttl has expired")
-				r.Delete(ctx, &v)
-			} else {
-				fmt.Println("Not deleting...")
+		for _, resource := range scavengerConfig.Spec.Resources {
+
+			element, _ := getResourceType(resource)
+
+			if err := r.List(ctx, element, client.InNamespace(namespace)); err != nil {
+				log.Error(err, "unable to list pods")
 			}
 
-		} else {
+			meta.EachListItem(element, func(obj runtime.Object) error {
+				item, ok := obj.(client.Object)
+				if !ok {
+					return fmt.Errorf("expected client.Object, got %T", obj)
+				}
 
-			graceperiod := client.GracePeriodSeconds(5)
-			fmt.Println("TTL expired deleting the pod")
-			r.Delete(ctx, &v, graceperiod)
+				if annotation, ttlExists := item.GetAnnotations()["ttl"]; ttlExists {
+
+					fmt.Println("TTL", annotation)
+					fmt.Println("Creation Time", item.GetCreationTimestamp().Time)
+
+					ttl, _ := strconv.ParseInt(annotation, 10, 64)
+					creationTime := item.GetCreationTimestamp().Time
+					duration := time.Since(creationTime)
+
+					fmt.Println("Duration", int64(duration.Seconds()))
+					fmt.Println("Time now", time.Now())
+
+					graceperiod := client.GracePeriodSeconds(5)
+
+					if ttl < int64(duration.Seconds()) {
+						fmt.Println("Deleting resource as its ttl has expired", resource, item.GetName())
+						r.Delete(ctx, item, graceperiod)
+					} else {
+						fmt.Println("Not deleting...")
+					}
+
+				} else {
+
+					graceperiod := client.GracePeriodSeconds(5)
+					fmt.Println("TTL expired deleting the resource : ", resource, item.GetName())
+					r.Delete(ctx, item, graceperiod)
+				}
+
+				fmt.Println("----------------------------------------------------------------------------------")
+
+				return nil
+			})
+			// for _, v := range &element {
+
+			// 	if annotation, ttlExists := v.Annotations["ttl"]; ttlExists {
+
+			// 		fmt.Println("TTL", annotation)
+			// 		fmt.Println("Creation Time", v.CreationTimestamp)
+
+			// 		ttl, _ := strconv.ParseInt(annotation, 10, 64)
+			// 		creationTime := v.CreationTimestamp.Time
+			// 		duration := time.Since(creationTime)
+
+			// 		fmt.Println("Duration", int64(duration.Seconds()))
+			// 		fmt.Println("Time now", time.Now())
+
+			// 		if ttl < int64(duration.Seconds()) {
+			// 			fmt.Println("Deleting Pod as its ttl has expired")
+			// 			r.Delete(ctx, &v)
+			// 		} else {
+			// 			fmt.Println("Not deleting...")
+			// 		}
+
+			// 	} else {
+
+			// 		graceperiod := client.GracePeriodSeconds(5)
+			// 		fmt.Println("TTL expired deleting the pod")
+			// 		r.Delete(ctx, &v, graceperiod)
+			// 	}
+
+			// 	fmt.Println("----------------------------------------------------------------------------------")
+
+			// }
+
+			// return ctrl.Result{Requeue: true, RequeueAfter: 10 * time.Second}, nil
+
 		}
-
-		fmt.Println("----------------------------------------------------------------------------------")
 
 	}
 
+	// return ctrl.Result{}, nil
 	return ctrl.Result{Requeue: true, RequeueAfter: 10 * time.Second}, nil
 }
 
